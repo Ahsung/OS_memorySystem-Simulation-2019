@@ -108,7 +108,8 @@ void initializeProc(struct procEntry * procTable) {
 	}
 }
 
-void fifo(struct framePage *first, unsigned int newPageNum,int newPid) {
+//one-level만 고려했을떄 fifo
+/*void fifo(struct framePage *first, unsigned int newPageNum,int newPid) {
 	int outVaddr =  first->virtualPageNumber; //비워줄 프레임이 원래 담고 있던 Virtual addr
 	int outPid = first->pid;				//비워줄 프레임이 원래 담고있단 pid
 	int inframNumber = first->number;		//바꿔줄 프레임의 물리번호
@@ -118,6 +119,19 @@ void fifo(struct framePage *first, unsigned int newPageNum,int newPid) {
 	//새로 들어올 예정인 Virtual 주소에 first framNumber를 배정해준다.
 	PageEntry[newPid][newPageNum].valid = 1;
 	PageEntry[newPid][newPageNum].frameNumber = inframNumber;
+	//first frame에 새로운 vitual을 배정해준다.
+	first->pid = newPid;
+	first->virtualPageNumber = newPageNum;
+}*/
+
+//two-level도 고려한 fifo
+void fifo(struct pageTableEntry * outPET, struct pageTableEntry * newPET,struct framePage *first,int newPid,int newPageNum) {
+	//원래 first가 가르키던 PageEntry는 무효화시킨다.
+	outPET->valid = 0;
+
+	//새로 들어올 예정인 Virtual 주소에 first framNumber를 배정해준다.
+	newPET->valid = 1;
+	newPET->frameNumber = first->number;
 	//first frame에 새로운 vitual을 배정해준다.
 	first->pid = newPid;
 	first->virtualPageNumber = newPageNum;
@@ -160,7 +174,8 @@ void oneLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames, 
 					}
 					//피지컬 메모리가 꽉찬 상태의 page fault 처리 부분
 					else {
-						fifo(first, PageNum, i);
+						//fifo(first, PageNum, i);
+						fifo(&PageEntry[first->pid][first->virtualPageNumber], &PageEntry[i][PageNum],first,i,PageNum);
 						if (!FIFOorLRU) { first = first->lruRight; }	//FIFO 방식 그다음 아웃될 first는 다음으로 간다.
 						else {
 							//꽉찼고, 원형이기때문에 앞으로 한칸씩만 밀면 LRU성립
@@ -218,8 +233,9 @@ void oneLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames, 
 
 void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) {
 	initializeProc(procTable);
-	initPageTable(&PageEntry, numProcess,/*firstLevelBits*/(1<<20));
+	initPageTable(&PageEntry, numProcess,firstLevelBits);
 	initPhyMem(phyMemFrames, phyFrameNum);
+	printf("여기까진 되냐\n");
 	int i;
 	unsigned int phyFrameCount = 0;
 	struct framePage * first = &phyMemFrames[0];
@@ -229,32 +245,39 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 	char gar; //W or R 
 	unsigned int firstbit;
 	unsigned int secondbit;
-
+	unsigned int PageNum;
 	while (!feof(procTable[numProcess - 1].tracefp)) {
 		for (i = 0; i < numProcess; i++) {
 			fscanf(procTable[i].tracefp, "%x %c", &Vaddr, &gar);
 			if (feof(procTable[i].tracefp))continue;
 			Paddr = Vaddr & 0x00000FFF; // 물리주소 부분
-			//PageNum = Vaddr >> 12; //가상페이지의 넘버
-			firstbit = Vaddr >> 12;  //Vaddr >> (32 - firstLevelBits); //first level table number
+			PageNum = Vaddr >> 12; //가상페이지의 넘버
+			firstbit = Vaddr >> (32 - firstLevelBits); //first level table number
 			secondbit = (Vaddr << firstLevelBits) >> (firstLevelBits + 12); //second level table nubmer
 			procTable[i].ntraces++;
-
+			if (!PageEntry[i][firstbit].secondLevelPageTable) {
+				PageEntry[i][firstbit].secondLevelPageTable = (struct pageTableEntry *)calloc(20 - firstLevelBits, sizeof(struct pageTableEntry));
+				procTable[i].num2ndLevelPageTable++;
+			}
 			// Page Fault
-			if (PageEntry[i][firstbit].valid != 1) {
+			if (PageEntry[i][firstbit].secondLevelPageTable[secondbit].valid != 1) {
 
 				procTable[i].numPageFault++;
 				//Phy Frame에 아직 공간이 남아있으면..
 				if (phyFrameCount < phyFrameNum) {
-					PageEntry[i][firstbit].valid = 1;
-					PageEntry[i][firstbit].frameNumber = phyMemFrames[phyFrameCount].number;
+					PageEntry[i][firstbit].secondLevelPageTable[secondbit].valid = 1;
+					PageEntry[i][firstbit].secondLevelPageTable[secondbit].frameNumber = phyMemFrames[phyFrameCount].number;
 					phyMemFrames[phyFrameCount].virtualPageNumber = firstbit;
 					last = &phyMemFrames[phyFrameCount];
 					phyMemFrames[phyFrameCount++].pid = i;
 				}
 				//피지컬 메모리가 꽉찬 상태의 page fault 처리 부분
 				else {
-					fifo(first, firstbit, i);
+					//fifo(first, firstbit, i);
+					//빠질 first가 저장하고 있는 pageTableEntry를 뽑아낸다.
+					unsigned int Tfirstbit = (first->virtualPageNumber) >> (20 - firstLevelBits);
+					unsigned int Tsecondbit = ((first->virtualPageNumber) << firstLevelBits) >> firstLevelBits;
+					fifo(&PageEntry[first->pid][Tfirstbit].secondLevelPageTable[Tsecondbit], &PageEntry[i][firstbit].secondLevelPageTable[secondbit], first, i,PageNum );
 						//꽉찼고, 원형이기때문에 앞으로 한칸씩만 밀면 LRU성립
 						first = first->lruRight;
 						last = last->lruRight;
@@ -265,7 +288,7 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 			else {
 				procTable[i].numPageHit++;
 				//LRU 처리
-					unsigned int curFrameN = PageEntry[i][firstbit].frameNumber;
+					unsigned int curFrameN = PageEntry[i][firstbit].secondLevelPageTable[secondbit].frameNumber;
 
 					//현재 hit된게 LRU의 first였다면 first를 그 다음으로 바꿔준다.
 					if (first == &phyMemFrames[curFrameN]) {
