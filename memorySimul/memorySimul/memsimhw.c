@@ -68,14 +68,7 @@ void initPageTable(struct pageTableEntry ***PageEntry, int numProcess,unsigned i
 		*(*PageEntry+i) = (struct pageTableEntry*)calloc(size,sizeof(struct pageTableEntry));
 	}
 }
-void initSecondPointer(struct pageTableEntry ** PageEntry, int numProcess, unsigned size) {
-	int i, j;
-	for (i = 0; i < numProcess; i++) {
-		for (j = 0; j < size; j++) {
-			PageEntry[i][j].secondLevelPageTable = NULL;
-		}
-	}
-}
+
 void FreePageTable(struct pageTableEntry ***PageEntry, int numProcess) {
 	int i, j;
 	for (i = 0; i < numProcess; i++) {
@@ -242,7 +235,7 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 	initializeProc(procTable);
 	initPageTable(&PageEntry, numProcess,(1<<firstLevelBits));
 	initPhyMem(phyMemFrames, phyFrameNum);
-	//initSecondPointer(PageEntry, numProcess, (1<<firstLevelBits));
+
 	int i;
 	unsigned int phyFrameCount = 0;
 	struct framePage * first = &phyMemFrames[0];
@@ -261,20 +254,16 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 			firstbit = Vaddr >> (32 - firstLevelBits); //first level table number
 			secondbit = (Vaddr << firstLevelBits) >> (firstLevelBits + 12); //second level table nubmer
 			procTable[i].ntraces++;
-			printf("first second :%x %x\n", firstbit, secondbit);
-			printf("pageNum : %x\n",PageNum);
-			printf("second table ad: %d %d\n", PageEntry[i][firstbit].secondLevelPageTable, PageEntry[i][firstbit].valid);
+
 			if (!PageEntry[i][firstbit].secondLevelPageTable) {
 				unsigned int size = (1 << (20 - firstLevelBits));
-				printf("size: %d\n", size);
+				//printf("size: %d\n", size);
 				PageEntry[i][firstbit].secondLevelPageTable = (struct pageTableEntry *)calloc((size), sizeof(struct pageTableEntry));
 				procTable[i].num2ndLevelPageTable++;
 			}
-			printf("할당도되고? 먹고..!\n");
-			printf("%x %d\n", secondbit,sizeof(PageEntry[i][firstbit]));
 			// Page Fault
 			if (PageEntry[i][firstbit].secondLevelPageTable[secondbit].valid != 1) {
-				printf("Page fault 도 먹고..!\n");
+				//printf("Page fault 도 먹고..!\n");
 				procTable[i].numPageFault++;
 				//Phy Frame에 아직 공간이 남아있으면..
 				if (phyFrameCount < phyFrameNum) {
@@ -286,15 +275,11 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 				}
 				//피지컬 메모리가 꽉찬 상태의 page fault 처리 부분
 				else {
-					printf("피지컬 꽊찬후!.!\n");
-					//fifo(first, firstbit, i);
 					//빠질 first가 저장하고 있는 pageTableEntry를 뽑아낸다.
 					unsigned int Tfirstbit = (first->virtualPageNumber) >> (20 - firstLevelBits);
 					unsigned int Tsecondbit = ((first->virtualPageNumber) << (12+firstLevelBits)) >> (12+firstLevelBits);
-					printf("%d %x %x %x\n", first->pid, Tfirstbit, Tsecondbit, first->virtualPageNumber);
 					fifo(&PageEntry[first->pid][Tfirstbit].secondLevelPageTable[Tsecondbit], &PageEntry[i][firstbit].secondLevelPageTable[secondbit], first, i,PageNum );
 						//꽉찼고, 원형이기때문에 앞으로 한칸씩만 밀면 LRU성립
-					printf("fifo가 먹혀먹고..!\n");
 						first = first->lruRight;
 						last = last->lruRight;
 				}
@@ -302,7 +287,6 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 
 			//HIT
 			else {
-				printf("Hit 도 먹고..!\n");
 				procTable[i].numPageHit++;
 				//LRU 처리
 					unsigned int curFrameN = PageEntry[i][firstbit].secondLevelPageTable[secondbit].frameNumber;
@@ -327,7 +311,6 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 						last = &phyMemFrames[curFrameN];			//last는 현재 frame
 					}
 			}
-			printf("secondbit도 먹고..!\n");
 			// -s option print statement
 			if (s_flag) {
 				printf("Two-Level procID %d traceNumber %d virtual addr %x physical addr %x\n", i, procTable[i].ntraces, Vaddr, Paddr);
@@ -343,6 +326,7 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 		printf("Proc %d Num of Page Hit %d\n",i,procTable[i].numPageHit);
 		assert(procTable[i].numPageHit + procTable[i].numPageFault == procTable[i].ntraces);
 	}
+	FreePageTable(&PageEntry, numProcess);
 }
 
 void invertedPageVMSim(struct procEntry *procTable, struct framePage *phyMemFrames, int nFrame) {
