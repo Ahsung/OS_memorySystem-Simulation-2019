@@ -18,13 +18,13 @@ struct pageTableEntry {
 	int level;				// page table level (1 or 2)
 	char valid;
 	struct pageTableEntry *secondLevelPageTable;	// valid if this entry is for the first level page table (level = 1)
-	int frameNumber;								// valid if this entry is for the second level page table (level = 2)
+	unsigned int frameNumber;								// valid if this entry is for the second level page table (level = 2)
 };
 
 struct framePage {
-	int number;			// frame number
+	unsigned int number;			// frame number
 	int pid;			// Process id that owns the frame
-	int virtualPageNumber;			// virtual page number using the frame
+	unsigned int virtualPageNumber;			// virtual page number using the frame
 	struct framePage *lruLeft;	// for LRU circular doubly linked list
 	struct framePage *lruRight; // for LRU circular doubly linked list
 };
@@ -128,7 +128,6 @@ void initializeProc(struct procEntry * procTable) {
 void fifo(struct pageTableEntry * outPET, struct pageTableEntry * newPET,struct framePage *first,int newPid,int newPageNum) {
 	//원래 first가 가르키던 PageEntry는 무효화시킨다.
 	outPET->valid = 0;
-
 	//새로 들어올 예정인 Virtual 주소에 first framNumber를 배정해준다.
 	newPET->valid = 1;
 	newPET->frameNumber = first->number;
@@ -235,13 +234,11 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 	initializeProc(procTable);
 	initPageTable(&PageEntry, numProcess,firstLevelBits);
 	initPhyMem(phyMemFrames, phyFrameNum);
-	printf("여기까진 되냐\n");
 	int i;
 	unsigned int phyFrameCount = 0;
 	struct framePage * first = &phyMemFrames[0];
 	//LRU는 새로운 addr을 읽을때마다 last가 변한다. 만약 새로부른게 first일 수 있으므로 확인후 갱신이 필요!
 	struct framePage * last = &phyMemFrames[0];
-
 	char gar; //W or R 
 	unsigned int firstbit;
 	unsigned int secondbit;
@@ -255,30 +252,36 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 			firstbit = Vaddr >> (32 - firstLevelBits); //first level table number
 			secondbit = (Vaddr << firstLevelBits) >> (firstLevelBits + 12); //second level table nubmer
 			procTable[i].ntraces++;
+			printf("first second :%x %x\n", firstbit, secondbit);
+			printf("pageNum : %x\n",PageNum);
 			if (!PageEntry[i][firstbit].secondLevelPageTable) {
-				PageEntry[i][firstbit].secondLevelPageTable = (struct pageTableEntry *)calloc(20 - firstLevelBits, sizeof(struct pageTableEntry));
+				PageEntry[i][firstbit].secondLevelPageTable = (struct pageTableEntry *)calloc(1<<(20 - firstLevelBits), sizeof(struct pageTableEntry));
 				procTable[i].num2ndLevelPageTable++;
 			}
+	
 			// Page Fault
 			if (PageEntry[i][firstbit].secondLevelPageTable[secondbit].valid != 1) {
-
+				printf("Page fault 도 먹고..!\n");
 				procTable[i].numPageFault++;
 				//Phy Frame에 아직 공간이 남아있으면..
 				if (phyFrameCount < phyFrameNum) {
 					PageEntry[i][firstbit].secondLevelPageTable[secondbit].valid = 1;
 					PageEntry[i][firstbit].secondLevelPageTable[secondbit].frameNumber = phyMemFrames[phyFrameCount].number;
-					phyMemFrames[phyFrameCount].virtualPageNumber = firstbit;
+					phyMemFrames[phyFrameCount].virtualPageNumber = PageNum;
 					last = &phyMemFrames[phyFrameCount];
 					phyMemFrames[phyFrameCount++].pid = i;
 				}
 				//피지컬 메모리가 꽉찬 상태의 page fault 처리 부분
 				else {
+					printf("피지컬 꽊찬후!.!\n");
 					//fifo(first, firstbit, i);
 					//빠질 first가 저장하고 있는 pageTableEntry를 뽑아낸다.
 					unsigned int Tfirstbit = (first->virtualPageNumber) >> (20 - firstLevelBits);
-					unsigned int Tsecondbit = ((first->virtualPageNumber) << firstLevelBits) >> firstLevelBits;
+					unsigned int Tsecondbit = ((first->virtualPageNumber) << (12+firstLevelBits)) >> (12+firstLevelBits);
+					printf("%d %x %x %x\n", first->pid, Tfirstbit, Tsecondbit, first->virtualPageNumber);
 					fifo(&PageEntry[first->pid][Tfirstbit].secondLevelPageTable[Tsecondbit], &PageEntry[i][firstbit].secondLevelPageTable[secondbit], first, i,PageNum );
 						//꽉찼고, 원형이기때문에 앞으로 한칸씩만 밀면 LRU성립
+					printf("fifo가 먹혀먹고..!\n");
 						first = first->lruRight;
 						last = last->lruRight;
 				}
@@ -286,6 +289,7 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 
 			//HIT
 			else {
+				printf("Hit 도 먹고..!\n");
 				procTable[i].numPageHit++;
 				//LRU 처리
 					unsigned int curFrameN = PageEntry[i][firstbit].secondLevelPageTable[secondbit].frameNumber;
@@ -310,6 +314,7 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 						last = &phyMemFrames[curFrameN];			//last는 현재 frame
 					}
 			}
+			printf("secondbit도 먹고..!\n");
 			// -s option print statement
 			if (s_flag) {
 				printf("Two-Level procID %d traceNumber %d virtual addr %x physical addr %x\n", i, procTable[i].ntraces, Vaddr, Paddr);
