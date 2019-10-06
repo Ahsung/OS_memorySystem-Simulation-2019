@@ -222,40 +222,39 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 	initPhyMem(phyMemFrames, phyFrameNum);
 	int i;
 	unsigned int phyFrameCount = 0;
-	//FiFo 방식은 first만 사용
 	struct framePage * first = &phyMemFrames[0];
 	//LRU는 새로운 addr을 읽을때마다 last가 변한다. 만약 새로부른게 first일 수 있으므로 확인후 갱신이 필요!
 	struct framePage * last = &phyMemFrames[0];
-	// -s option print statement
+
 	char gar; //W or R 
 	unsigned int firstbit;
 	unsigned int secondbit;
-	unsigned int PageNum;
+
 	while (!feof(procTable[numProcess - 1].tracefp)) {
 		for (i = 0; i < numProcess; i++) {
 			fscanf(procTable[i].tracefp, "%x %c", &Vaddr, &gar);
 			if (feof(procTable[i].tracefp))continue;
 			Paddr = Vaddr & 0x00000FFF; // 물리주소 부분
-			PageNum = Vaddr >> 12; //가상페이지의 넘버
-			firstbit = Vaddr >> (32 - firstLevelBits); //first level table number
+			//PageNum = Vaddr >> 12; //가상페이지의 넘버
+			firstbit = Vaddr >> 12;  //Vaddr >> (32 - firstLevelBits); //first level table number
 			secondbit = (Vaddr << firstLevelBits) >> (firstLevelBits + 12); //second level table nubmer
 			procTable[i].ntraces++;
 
 			// Page Fault
-			if (PageEntry[i][PageNum].valid != 1) {
+			if (PageEntry[i][firstbit].valid != 1) {
 
 				procTable[i].numPageFault++;
 				//Phy Frame에 아직 공간이 남아있으면..
 				if (phyFrameCount < phyFrameNum) {
-					PageEntry[i][PageNum].valid = 1;
-					PageEntry[i][PageNum].frameNumber = phyMemFrames[phyFrameCount].number;
-					phyMemFrames[phyFrameCount].virtualPageNumber = PageNum;
+					PageEntry[i][firstbit].valid = 1;
+					PageEntry[i][firstbit].frameNumber = phyMemFrames[phyFrameCount].number;
+					phyMemFrames[phyFrameCount].virtualPageNumber = firstbit;
 					last = &phyMemFrames[phyFrameCount];
 					phyMemFrames[phyFrameCount++].pid = i;
 				}
 				//피지컬 메모리가 꽉찬 상태의 page fault 처리 부분
 				else {
-					fifo(first, PageNum, i);
+					fifo(first, firstbit, i);
 						//꽉찼고, 원형이기때문에 앞으로 한칸씩만 밀면 LRU성립
 						first = first->lruRight;
 						last = last->lruRight;
@@ -266,7 +265,7 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 			else {
 				procTable[i].numPageHit++;
 				//LRU 처리
-					unsigned int curFrameN = PageEntry[i][PageNum].frameNumber;
+					unsigned int curFrameN = PageEntry[i][firstbit].frameNumber;
 
 					//현재 hit된게 LRU의 first였다면 first를 그 다음으로 바꿔준다.
 					if (first == &phyMemFrames[curFrameN]) {
