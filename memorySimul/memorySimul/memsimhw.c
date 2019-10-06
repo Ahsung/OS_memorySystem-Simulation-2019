@@ -68,6 +68,14 @@ void initPageTable(struct pageTableEntry ***PageEntry, int numProcess,unsigned i
 		*(*PageEntry+i) = (struct pageTableEntry*)calloc(size,sizeof(struct pageTableEntry));
 	}
 }
+void initSecondPointer(struct pageTableEntry ** PageEntry, int numProcess, unsigned size) {
+	int i, j;
+	for (i = 0; i < numProcess; i++) {
+		for (j = 0; j < size; j++) {
+			PageEntry[i][j].secondLevelPageTable = NULL;
+		}
+	}
+}
 void FreePageTable(struct pageTableEntry ***PageEntry, int numProcess) {
 	int i, j;
 	for (i = 0; i < numProcess; i++) {
@@ -232,8 +240,9 @@ void oneLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames, 
 
 void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) {
 	initializeProc(procTable);
-	initPageTable(&PageEntry, numProcess,firstLevelBits);
+	initPageTable(&PageEntry, numProcess,(1<<firstLevelBits));
 	initPhyMem(phyMemFrames, phyFrameNum);
+	//initSecondPointer(PageEntry, numProcess, (1<<firstLevelBits));
 	int i;
 	unsigned int phyFrameCount = 0;
 	struct framePage * first = &phyMemFrames[0];
@@ -254,11 +263,15 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 			procTable[i].ntraces++;
 			printf("first second :%x %x\n", firstbit, secondbit);
 			printf("pageNum : %x\n",PageNum);
+			printf("second table ad: %d %d\n", PageEntry[i][firstbit].secondLevelPageTable, PageEntry[i][firstbit].valid);
 			if (!PageEntry[i][firstbit].secondLevelPageTable) {
-				PageEntry[i][firstbit].secondLevelPageTable = (struct pageTableEntry *)calloc(1<<(20 - firstLevelBits), sizeof(struct pageTableEntry));
+				unsigned int size = (1 << (20 - firstLevelBits));
+				printf("size: %d\n", size);
+				PageEntry[i][firstbit].secondLevelPageTable = (struct pageTableEntry *)calloc((size), sizeof(struct pageTableEntry));
 				procTable[i].num2ndLevelPageTable++;
 			}
-	
+			printf("ÇÒ´çµµµÇ°í? ¸Ô°í..!\n");
+			printf("%x %d\n", secondbit,sizeof(PageEntry[i][firstbit]));
 			// Page Fault
 			if (PageEntry[i][firstbit].secondLevelPageTable[secondbit].valid != 1) {
 				printf("Page fault µµ ¸Ô°í..!\n");

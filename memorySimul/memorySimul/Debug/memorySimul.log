@@ -1,10 +1,12 @@
 ﻿  memsimhw.c
 c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(65): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(72): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(143): warning C4996: 'fscanf': This function or variable may be unsafe. Consider using fscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(74): warning C4018: '<': signed 또는 unsigned가 일치하지 않습니다.
+c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(80): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(164): warning C4996: 'fscanf': This function or variable may be unsafe. Consider using fscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   c:\program files (x86)\windows kits\10\include\10.0.17134.0\ucrt\stdio.h(1197): note: 'fscanf' 선언을 참조하십시오.
-c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(235): warning C4996: 'fscanf': This function or variable may be unsafe. Consider using fscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(266): warning C4477: 'printf' : 서식 문자열 '%d'에 'int' 형식의 인수가 필요하지만 variadic 인수 1의 형식이 'pageTableEntry *'입니다.
+c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(257): warning C4996: 'fscanf': This function or variable may be unsafe. Consider using fscanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   c:\program files (x86)\windows kits\10\include\10.0.17134.0\ucrt\stdio.h(1197): note: 'fscanf' 선언을 참조하십시오.
-c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(397): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+c:\users\asung\desktop\memorysimul\memorysimul\memorysimul\memsimhw.c(438): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   c:\program files (x86)\windows kits\10\include\10.0.17134.0\ucrt\stdio.h(208): note: 'fopen' 선언을 참조하십시오.
   memorySimul.vcxproj -> C:\Users\asung\Desktop\memorySimul\memorySimul\Debug\memorySimul.exe
