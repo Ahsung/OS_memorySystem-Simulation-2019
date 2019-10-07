@@ -137,6 +137,8 @@ void fifo(struct pageTableEntry * outPET, struct pageTableEntry * newPET,struct 
 	first->virtualPageNumber = newPageNum;
 }
 
+
+
 void oneLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames, int FIFOorLRU) {
 	initializeProc(procTable);
 	initPageTable(&PageEntry, numProcess,(1<<20));
@@ -328,91 +330,8 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 }
 
 void invertedPageVMSim(struct procEntry *procTable, struct framePage *phyMemFrames, int nFrame) {
-	initializeProc(procTable);
-	initPageTable(&PageEntry, numProcess, (1 << firstLevelBits));
-	initPhyMem(phyMemFrames, phyFrameNum);
-
-	int i;
-	unsigned int phyFrameCount = 0;
-	struct framePage * first = &phyMemFrames[0];
-	//LRU는 새로운 addr을 읽을때마다 last가 변한다. 만약 새로부른게 first일 수 있으므로 확인후 갱신이 필요!
-	struct framePage * last = &phyMemFrames[0];
-	char gar; //W or R 
-	unsigned int firstbit;
-	unsigned int secondbit;
-	unsigned int PageNum;
-	while (!feof(procTable[numProcess - 1].tracefp)) {
-		for (i = 0; i < numProcess; i++) {
-			fscanf(procTable[i].tracefp, "%x %c", &Vaddr, &gar);
-			if (feof(procTable[i].tracefp))continue;
-			Paddr = Vaddr & 0x00000FFF; // 물리주소 부분
-			PageNum = Vaddr >> 12; //가상페이지의 넘버
-			firstbit = Vaddr >> (32 - firstLevelBits); //first level table number
-			secondbit = (Vaddr << firstLevelBits) >> (firstLevelBits + 12); //second level table nubmer
-			procTable[i].ntraces++;
-
-			if (!PageEntry[i][firstbit].secondLevelPageTable) {
-				unsigned int size = (1 << (20 - firstLevelBits));
-				//printf("size: %d\n", size);
-				PageEntry[i][firstbit].secondLevelPageTable = (struct pageTableEntry *)calloc((size), sizeof(struct pageTableEntry));
-				procTable[i].num2ndLevelPageTable++;
-			}
-			// Page Fault
-			if (PageEntry[i][firstbit].secondLevelPageTable[secondbit].valid != 1) {
-				//printf("Page fault 도 먹고..!\n");
-				procTable[i].numPageFault++;
-				//Phy Frame에 아직 공간이 남아있으면..
-				if (phyFrameCount < phyFrameNum) {
-					PageEntry[i][firstbit].secondLevelPageTable[secondbit].valid = 1;
-					PageEntry[i][firstbit].secondLevelPageTable[secondbit].frameNumber = phyMemFrames[phyFrameCount].number;
-					phyMemFrames[phyFrameCount].virtualPageNumber = PageNum;
-					last = &phyMemFrames[phyFrameCount];
-					phyMemFrames[phyFrameCount++].pid = i;
-				}
-				//피지컬 메모리가 꽉찬 상태의 page fault 처리 부분
-				else {
-					//빠질 first가 저장하고 있는 pageTableEntry를 뽑아낸다.
-					unsigned int Tfirstbit = (first->virtualPageNumber) >> (20 - firstLevelBits);
-					unsigned int Tsecondbit = ((first->virtualPageNumber) << (12 + firstLevelBits)) >> (12 + firstLevelBits);
-					fifo(&PageEntry[first->pid][Tfirstbit].secondLevelPageTable[Tsecondbit], &PageEntry[i][firstbit].secondLevelPageTable[secondbit], first, i, PageNum);
-					//꽉찼고, 원형이기때문에 앞으로 한칸씩만 밀면 LRU성립
-					first = first->lruRight;
-					last = last->lruRight;
-				}
-			}
-
-			//HIT
-			else {
-				procTable[i].numPageHit++;
-				//LRU 처리
-				unsigned int curFrameN = PageEntry[i][firstbit].secondLevelPageTable[secondbit].frameNumber;
-
-				//현재 hit된게 LRU의 first였다면 first를 그 다음으로 바꿔준다.
-				if (first == &phyMemFrames[curFrameN]) {
-					first = first->lruRight;
-				}
-				if (last != &phyMemFrames[curFrameN]) {
-
-					//현재 hit된 frame은 last로 빠지기 위해 자신의 좌우를 서로 연결해준다.
-					phyMemFrames[curFrameN].lruLeft->lruRight = phyMemFrames[curFrameN].lruRight;
-					phyMemFrames[curFrameN].lruRight->lruLeft = phyMemFrames[curFrameN].lruLeft;
-
-					//현재 frame의 좌우를 새로 갱신해준다.
-					phyMemFrames[curFrameN].lruLeft = last; //현재 frame의 왼쪽이 last
-					phyMemFrames[curFrameN].lruRight = last->lruRight; //현재 frame의 오른쪽은 last의 오른쪽
-
-					//last와 last의 오른쪽노드의 정보를 현재 frame연결로 갱신하고 last도 갱신한다.
-					last->lruRight->lruLeft = &phyMemFrames[curFrameN]; //last의 오른쪽의 왼쪾은 현재 frame
-					last->lruRight = &phyMemFrames[curFrameN]; //last의 오른쪽은 현재 frame
-					last = &phyMemFrames[curFrameN];			//last는 현재 frame
-				}
-			}
-			// -s option print statement
-			if (s_flag) {
-				printf("Two-Level procID %d traceNumber %d virtual addr %x physical addr %x\n", i, procTable[i].ntraces, Vaddr, Paddr);
-			}
-		}
-	}
+	int i = procTable->pid;
+	// -s option print statement
 	printf("IHT procID %d traceNumber %d virtual addr %x physical addr %x\n", i, procTable[i].ntraces,Vaddr,Paddr);
 		
 	for(i=0; i < numProcess; i++) {
