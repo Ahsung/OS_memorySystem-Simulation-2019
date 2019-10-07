@@ -329,10 +329,118 @@ void twoLevelVMSim(struct procEntry *procTable, struct framePage *phyMemFrames) 
 	FreePageTable(&PageEntry, numProcess);
 }
 
+int findhash(struct invertedPageTableEntry *invertEntry,int pid, unsigned int PageNum,int *fault_flag,int *empty_flag,unsigned int *frameNumber) {
+	int i = 0;
+	*fault_flag = 1;
+	*empty_flag = 1;
+	struct invertedPageTableEntry *first = invertEntry;
+	//hash의 다음을 찾으면서 카운팅
+	while (invertEntry->next) {
+		*empty_flag = 0;
+		invertEntry = invertEntry->next;
+		if ((invertEntry->pid == pid) && (invertEntry->virtualPageNumber == PageNum)) {
+			*fault_flag = 0;
+			*frameNumber = invertEntry->frameNumber;
+		}
+		i++;
+	}
+	//fault가 나면 삽입
+	/*if (fault_flag == 1) {
+		struct invertedPageTableEntry *insertEntry = (struct invertedPageTableEntry *)malloc(sizeof(struct invertedPageTableEntry));
+		
+		insertEntry->next = first->next;
+		first->next = insertEntry;
+	}*/
+	return i;
+}
+
 void invertedPageVMSim(struct procEntry *procTable, struct framePage *phyMemFrames, int nFrame) {
-	int i = procTable->pid;
-	// -s option print statement
-	printf("IHT procID %d traceNumber %d virtual addr %x physical addr %x\n", i, procTable[i].ntraces,Vaddr,Paddr);
+	initializeProc(procTable);
+	struct invertedPageTableEntry *invertEntry = (struct invertedPageTableEntry *)calloc(nFrame, sizeof(struct invertedPageTableEntry));
+	initPhyMem(phyMemFrames, phyFrameNum);
+
+	int i;
+	unsigned int phyFrameCount = 0;
+	struct framePage * first = &phyMemFrames[0];
+	//LRU는 새로운 addr을 읽을때마다 last가 변한다. 만약 새로부른게 first일 수 있으므로 확인후 갱신이 필요!
+	struct framePage * last = &phyMemFrames[0];
+	char gar; //W or R 
+	unsigned int PageNum;
+	unsigned int hash_index;
+	int fault_flag = 0;
+	int empty_flag = 1;
+	unsigned CurFrameNumber;
+	while (!feof(procTable[numProcess - 1].tracefp)) {
+		for (i = 0; i < numProcess; i++) {
+			fscanf(procTable[i].tracefp, "%x %c", &Vaddr, &gar);
+			if (feof(procTable[i].tracefp))continue;
+			Paddr = Vaddr & 0x00000FFF; // 물리주소 부분
+			PageNum = Vaddr >> 12; //가상페이지의 넘버
+			hash_index = Vaddr % nFrame;
+			procTable[i].ntraces++;
+			procTable[i].numIHTConflictAccess = findhash(&invertEntry[hash_index], i, PageNum, &fault_flag,&empty_flag,&CurFrameNumber);
+			if (empty_flag) procTable[i].numIHTNULLAccess++;
+			else procTable[i].numIHTNonNULLAcess++;
+			
+			// Page Fault
+			if (fault_flag) {
+				//printf("Page fault 도 먹고..!\n");
+				procTable[i].numPageFault++;
+				//Phy Frame에 아직 공간이 남아있으면..
+				if (phyFrameCount < nFrame) {
+					struct invertedPageTableEntry *insertEntry = (struct invertedPageTableEntry *)malloc(sizeof(struct invertedPageTableEntry));
+					insertEntry->frameNumber = phyMemFrames[phyFrameCount].number;
+					insertEntry->virtualPageNumber = PageNum;
+					insertEntry->next = invertEntry[hash_index].next;
+					insertEntry->pid = i;
+					invertEntry[hash_index].next = insertEntry;
+					phyMemFrames[phyFrameCount].virtualPageNumber = PageNum;
+					
+					last = &phyMemFrames[phyFrameCount];	//가장 마지막에 access한 물리 프레임.
+					phyMemFrames[phyFrameCount++].pid = i;
+				}
+				//피지컬 메모리가 꽉찬 상태의 page fault 처리 부분
+				else {
+					//빠질 first가 저장하고 있는 pageTableEntry를 뽑아낸다
+		
+					//꽉찼고, 원형이기때문에 앞으로 한칸씩만 밀면 LRU성립
+					first = first->lruRight;
+					last = last->lruRight;
+				}
+			}
+
+			//HIT
+			else {
+				procTable[i].numPageHit++;
+				//LRU 처리
+				unsigned int curFrameN = PageEntry[i][firstbit].secondLevelPageTable[secondbit].frameNumber;
+
+				//현재 hit된게 LRU의 first였다면 first를 그 다음으로 바꿔준다.
+				if (first == &phyMemFrames[curFrameN]) {
+					first = first->lruRight;
+				}
+				if (last != &phyMemFrames[curFrameN]) {
+
+					//현재 hit된 frame은 last로 빠지기 위해 자신의 좌우를 서로 연결해준다.
+					phyMemFrames[curFrameN].lruLeft->lruRight = phyMemFrames[curFrameN].lruRight;
+					phyMemFrames[curFrameN].lruRight->lruLeft = phyMemFrames[curFrameN].lruLeft;
+
+					//현재 frame의 좌우를 새로 갱신해준다.
+					phyMemFrames[curFrameN].lruLeft = last; //현재 frame의 왼쪽이 last
+					phyMemFrames[curFrameN].lruRight = last->lruRight; //현재 frame의 오른쪽은 last의 오른쪽
+
+					//last와 last의 오른쪽노드의 정보를 현재 frame연결로 갱신하고 last도 갱신한다.
+					last->lruRight->lruLeft = &phyMemFrames[curFrameN]; //last의 오른쪽의 왼쪾은 현재 frame
+					last->lruRight = &phyMemFrames[curFrameN]; //last의 오른쪽은 현재 frame
+					last = &phyMemFrames[curFrameN];			//last는 현재 frame
+				}
+			}
+			// -s option print statement
+			if (s_flag) {
+				printf("IHT procID %d traceNumber %d virtual addr %x physical addr %x\n", i, procTable[i].ntraces, Vaddr, Paddr);
+			}
+		}
+	}
 		
 	for(i=0; i < numProcess; i++) {
 		printf("**** %s *****\n",procTable[i].traceName);
@@ -345,6 +453,7 @@ void invertedPageVMSim(struct procEntry *procTable, struct framePage *phyMemFram
 		assert(procTable[i].numPageHit + procTable[i].numPageFault == procTable[i].ntraces);
 		assert(procTable[i].numIHTNULLAccess + procTable[i].numIHTNonNULLAcess == procTable[i].ntraces);
 	}
+	
 }
 
 int checkValidStart(int argc,char *argv[],int *pindex) {
@@ -369,6 +478,7 @@ int checkValidStart(int argc,char *argv[],int *pindex) {
 	 }
 	return 0;
 }
+
 void resetValid(struct pageTableEntry** PageEntry, unsigned int phyFrameNum,int numProcess) {
 	int i, j;
 	for (i = 0; i < numProcess; i++) {
@@ -481,6 +591,7 @@ int main(int argc, char *argv[]) {
 		printf("The Inverted Page Table Memory Simulation Starts .....\n");
 		printf("=============================================================\n");
 		// call invertedPageVMsim()
+		invertedPageVMSim(procTable, phyMemFrames, nFrame);
 	}
 	return(0);
 }
