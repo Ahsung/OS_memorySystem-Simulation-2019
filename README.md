@@ -5,4 +5,19 @@
 *FIFO and LRU*
 * one-level
 * two-level
-* invert
+* inverted
+
+**Run**
+
+## argv: "[-s] simType firstLevelBits PhysicalMemorySizeBits TraceFileNames ...
+
+-s option is detail print opt
+---------------------------------------------------------------------------------------
+*simType*
+> * 0 = one-level
+> * 1 = two-level
+> * 2 = inverted
+> * over = All
+
+**ex**
+* memsim -s 
