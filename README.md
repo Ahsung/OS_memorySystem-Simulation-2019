@@ -11,7 +11,8 @@
 
 ## argv: "[-s] simType firstLevelBits PhysicalMemorySizeBits TraceFileNames ...
 
--s option is detail print opt
+-s option is detail print opt    
+
 ---------------------------------------------------------------------------------------
 *simType*
 > * 0 = one-level
@@ -20,4 +21,4 @@
 > * over = All
 
 **ex**
-* memsim -s 
+* memsim -s 3 10 20 0.trace base.trace 1.trace
